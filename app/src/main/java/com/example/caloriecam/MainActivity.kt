@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ElevatedCard
@@ -180,14 +182,34 @@ fun CameraPreviewContent(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        FloatingActionButton(
-            onClick = { /* TODO: Implement capture functionality */ },
-            containerColor = MaterialTheme.colorScheme.primaryContainer
+        // Row to contain both buttons side by side
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Filled.Add,
-                contentDescription = "Take photo"
-            )
+            // Shutter button
+            FloatingActionButton(
+                onClick = { /* TODO: Implement capture functionality */ },
+                containerColor = MaterialTheme.colorScheme.primaryContainer
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = "Take photo"
+                )
+            }
+
+            // Switch camera button
+            FloatingActionButton(
+                onClick = {
+                    viewModel.toggleCamera(context.applicationContext, lifecycleOwner)
+                },
+                containerColor = MaterialTheme.colorScheme.secondaryContainer
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Refresh,
+                    contentDescription = "Switch camera"
+                )
+            }
         }
     }
 }
