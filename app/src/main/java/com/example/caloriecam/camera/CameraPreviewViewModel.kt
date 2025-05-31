@@ -23,25 +23,36 @@ class CameraPreviewViewModel : ViewModel() {
 
     // Track current camera selection
     private val _cameraSelector = MutableStateFlow(DEFAULT_BACK_CAMERA)
-    private val cameraSelector: StateFlow<CameraSelector> = _cameraSelector
+    val cameraSelector: StateFlow<CameraSelector> = _cameraSelector
 
     private val cameraPreviewUseCase = Preview.Builder().build().apply {
         setSurfaceProvider { newSurfaceRequest ->
             _surfaceRequest.update { newSurfaceRequest }
         }
     }
+    private var cameraJob: kotlinx.coroutines.Job? = null
+
 
     suspend fun bindToCamera(appContext: Context, lifecycleOwner: LifecycleOwner) {
-        val processCameraProvider = ProcessCameraProvider.awaitInstance(appContext)
-        processCameraProvider.bindToLifecycle(
-            lifecycleOwner, cameraSelector.value, cameraPreviewUseCase
-        )
+        try {
+            val processCameraProvider = ProcessCameraProvider.awaitInstance(appContext)
 
-        // Cancellation signals we're done with the camera
-        try { awaitCancellation() } finally { processCameraProvider.unbindAll() }
+            // Unbind all cameras first to prevent conflicts
+            processCameraProvider.unbindAll()
+
+            processCameraProvider.bindToLifecycle(
+                lifecycleOwner, cameraSelector.value, cameraPreviewUseCase
+            )
+
+            // Cancellation signals we're done with the camera
+            try { awaitCancellation() } finally { processCameraProvider.unbindAll() }
+        } catch (e: Exception) {
+            android.util.Log.e("CameraViewModel", "Camera binding failed", e)
+        }
     }
 
     fun toggleCamera(appContext: Context, lifecycleOwner: LifecycleOwner) {
+        cameraJob?.cancel()
         val newCamera = if (cameraSelector.value == DEFAULT_BACK_CAMERA) {
             DEFAULT_FRONT_CAMERA
         } else {
@@ -49,8 +60,8 @@ class CameraPreviewViewModel : ViewModel() {
         }
 
         _cameraSelector.value = newCamera
-        // Rebind camera with new selection
-        kotlinx.coroutines.MainScope().launch {
+        // Create new binding
+        cameraJob = kotlinx.coroutines.MainScope().launch {
             bindToCamera(appContext, lifecycleOwner)
         }
     }

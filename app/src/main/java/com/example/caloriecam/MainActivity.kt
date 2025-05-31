@@ -31,7 +31,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,7 +43,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.lifecycleScope
 import com.example.caloriecam.camera.CameraPreviewViewModel
 import com.example.caloriecam.ui.theme.CalorieCamTheme
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -58,9 +57,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        lifecycleScope.launch {
-            cameraViewModel.bindToCamera(applicationContext, this@MainActivity)
-        }
         setContent {
             CalorieCamTheme {
                 Surface(
@@ -145,8 +141,16 @@ fun CameraPreviewContent(
     val surfaceRequest by viewModel.surfaceRequest.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
-    LaunchedEffect(lifecycleOwner) {
-        viewModel.bindToCamera(context.applicationContext, lifecycleOwner)
+
+    // Use DisposableEffect to properly handle camera binding lifecycle
+    DisposableEffect(lifecycleOwner) {
+        val cameraJob = kotlinx.coroutines.MainScope().launch {
+            viewModel.bindToCamera(context.applicationContext, lifecycleOwner)
+        }
+
+        onDispose {
+            cameraJob.cancel()
+        }
     }
 
     Column(
