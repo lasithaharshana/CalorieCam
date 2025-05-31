@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.camera.compose.CameraXViewfinder
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -21,6 +23,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.FlipCameraAndroid
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ElevatedCard
@@ -30,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -37,6 +41,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -139,8 +145,8 @@ fun CameraPreviewContent(
     lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.current
 ) {
     val surfaceRequest by viewModel.surfaceRequest.collectAsStateWithLifecycle()
+    val capturedImage by viewModel.capturedImage.collectAsStateWithLifecycle()
     val context = LocalContext.current
-
 
     // Use DisposableEffect to properly handle camera binding lifecycle
     DisposableEffect(lifecycleOwner) {
@@ -193,7 +199,9 @@ fun CameraPreviewContent(
         ) {
             // Shutter button
             FloatingActionButton(
-                onClick = { /* TODO: Implement capture functionality */ },
+                onClick = {
+                    viewModel.capturePhoto(context)
+                },
                 containerColor = MaterialTheme.colorScheme.primaryContainer
             ) {
                 Icon(
@@ -215,5 +223,46 @@ fun CameraPreviewContent(
                 )
             }
         }
+    }
+
+    // Photo preview dialog
+    capturedImage?.let { bitmap ->
+        AlertDialog(
+            onDismissRequest = { viewModel.clearCapturedImage() },
+            title = { Text("Photo Preview") },
+            text = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(4f / 3f)
+                        .clip(MaterialTheme.shapes.medium),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        bitmap = bitmap.asImageBitmap(),
+                        contentDescription = "Captured photo",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        // TODO: Implement photo analysis
+                        viewModel.clearCapturedImage()
+                    }
+                ) {
+                    Text("Analyze")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { viewModel.clearCapturedImage() }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
