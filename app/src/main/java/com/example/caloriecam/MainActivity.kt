@@ -19,8 +19,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.FlipCameraAndroid
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ElevatedCard
@@ -197,7 +197,7 @@ fun CameraPreviewContent(
                 containerColor = MaterialTheme.colorScheme.primaryContainer
             ) {
                 Icon(
-                    imageVector = Icons.Filled.Add,
+                    imageVector = Icons.Filled.CameraAlt,
                     contentDescription = "Take photo"
                 )
             }
@@ -210,7 +210,7 @@ fun CameraPreviewContent(
                 containerColor = MaterialTheme.colorScheme.secondaryContainer
             ) {
                 Icon(
-                    imageVector = Icons.Filled.Refresh,
+                    imageVector = Icons.Filled.FlipCameraAndroid,
                     contentDescription = "Switch camera"
                 )
             }
