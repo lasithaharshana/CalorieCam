@@ -65,4 +65,7 @@ dependencies {
     implementation(libs.androidx.camera.extensions)
     implementation(libs.accompanist.permissions)
     implementation(libs.androidx.material.icons.extended)
+
+    // Add navigation-compose dependency
+    implementation("androidx.navigation:navigation-compose:2.7.7")
 }
