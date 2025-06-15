@@ -2,6 +2,7 @@ package com.example.caloriecam.camera
 
 import android.net.Uri
 import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.Preview
@@ -95,10 +96,68 @@ fun CameraScreen(
     val capturedImage by cameraViewModel.capturedImage.collectAsState()
     var showImagePreview by remember { mutableStateOf(false) }
 
+    // Collect analysis state
+    val isAnalyzing by cameraViewModel.isAnalyzing.collectAsState()
+    val analysisResult by cameraViewModel.analysisResult.collectAsState()
+
     // When a new image is captured, show the preview dialog
     LaunchedEffect(capturedImage) {
         if (capturedImage != null) {
             showImagePreview = true
+        }
+    }
+
+    // Show loading dialog when analyzing
+    if (isAnalyzing) {
+        Dialog(onDismissRequest = { /* Cannot dismiss while loading */ }) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth(0.8f)
+                    .padding(16.dp),
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .padding(8.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Analyzing image...",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Please wait while we analyze your image",
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+    }
+
+    // Show result popup when analysis is complete
+    LaunchedEffect(analysisResult) {
+        analysisResult?.let { result ->
+            // Show popup with results
+            val foodName = result.label.capitalize()
+            val probability = (result.probability * 100).toInt()
+
+            // Added a delay to ensure the loading dialog is shown for at least a moment
+            kotlinx.coroutines.delay(500)
+            cameraViewModel.clearAnalysisState()
+
+            // Create a toast message
+            val message = "Food detected: $foodName with ${probability}% confidence"
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -165,16 +224,27 @@ fun CameraScreen(
                                     Text("Cancel")
                                 }
 
+                                val isAnalyzing by cameraViewModel.isAnalyzing.collectAsState()
+
                                 Button(
                                     onClick = {
-                                        // TODO: Add analyze logic
+                                        cameraViewModel.analyzeImage()
                                         showImagePreview = false
-                                    }
+                                    },
+                                    enabled = !isAnalyzing
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.CheckCircle,
-                                        contentDescription = "Analyze"
-                                    )
+                                    if (isAnalyzing) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp,
+                                            color = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Default.CheckCircle,
+                                            contentDescription = "Analyze"
+                                        )
+                                    }
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text("Analyze")
                                 }
@@ -376,4 +446,3 @@ fun CameraPreviewWithControls(
         }
     }
 }
-

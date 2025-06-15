@@ -5,6 +5,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -14,6 +16,12 @@ import androidx.compose.material.icons.filled.Restaurant
 
 @Composable
 fun HomeScreen() {
+    // Get the food repository instance
+    val foodRepository = FoodRepository.getInstance()
+
+    // Collect food items as state
+    val foods by foodRepository.foods.collectAsState()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -26,11 +34,11 @@ fun HomeScreen() {
             modifier = Modifier.padding(bottom = 16.dp)
         )
         
-        // Display dummy food data
+        // Display food data from repository
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(dummyFoodData) { food ->
+            items(foods) { food ->
                 FoodCard(food)
             }
         }
