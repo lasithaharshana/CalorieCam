@@ -17,6 +17,10 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.caloriecam.api.FoodAnalysisResult
+import com.example.caloriecam.api.FoodAnalysisService
+import com.example.caloriecam.home.Food
+import com.example.caloriecam.home.FoodRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -32,8 +36,22 @@ class CameraPreviewViewModel : ViewModel() {
     private val _capturedImage = MutableStateFlow<Bitmap?>(null)
     val capturedImage: StateFlow<Bitmap?> = _capturedImage
 
+    // Track analysis result
+    private val _analysisResult = MutableStateFlow<FoodAnalysisResult?>(null)
+    val analysisResult: StateFlow<FoodAnalysisResult?> = _analysisResult
+
+    // Track analysis state
+    private val _isAnalyzing = MutableStateFlow(false)
+    val isAnalyzing: StateFlow<Boolean> = _isAnalyzing
+
     // Camera executor for background operations
     private lateinit var cameraExecutor: ExecutorService
+
+    // Food analysis service
+    private val foodAnalysisService = FoodAnalysisService()
+
+    // Food repository
+    private val foodRepository = FoodRepository.getInstance()
 
     // Keep Preview and ImageCapture use cases as class members
     val preview = Preview.Builder().build()
@@ -44,6 +62,10 @@ class CameraPreviewViewModel : ViewModel() {
     // Track if camera is ready
     private val _cameraReady = MutableStateFlow(false)
     val cameraReady: StateFlow<Boolean> = _cameraReady
+
+    // Track if food was added to home screen
+    private val _foodAddedToHomeScreen = MutableStateFlow<Food?>(null)
+    val foodAddedToHomeScreen: StateFlow<Food?> = _foodAddedToHomeScreen
 
     init {
         cameraExecutor = Executors.newSingleThreadExecutor()
@@ -150,6 +172,50 @@ class CameraPreviewViewModel : ViewModel() {
 
     fun clearCapturedImage() {
         _capturedImage.value = null
+    }
+
+    fun clearAnalysisState() {
+        _analysisResult.value = null
+    }
+
+    fun analyzeImage() {
+        val currentImage = _capturedImage.value ?: return
+
+        _isAnalyzing.value = true
+        viewModelScope.launch {
+            try {
+                val result = foodAnalysisService.analyzeFood(currentImage)
+                if (result.isSuccess) {
+                    val foodAnalysis = result.getOrNull()
+                    _analysisResult.value = foodAnalysis
+
+                    // Create a Food object from the result and add to repository
+                    foodAnalysis?.let { analysis ->
+                        val food = Food(
+                            name = analysis.label.capitalize(),
+                            description = "Detected with ${(analysis.probability * 100).toInt()}% confidence",
+                            calories = 0,  // We don't have calorie info from the prediction
+                            servingSize = "1 serving"
+                        )
+                        _foodAddedToHomeScreen.value = food
+
+                        // Add to repository so it shows up in the home screen
+                        foodRepository.addFood(food)
+                    }
+                } else {
+                    Log.e("CameraViewModel", "Analysis failed", result.exceptionOrNull())
+                }
+            } catch (e: Exception) {
+                Log.e("CameraViewModel", "Error during analysis", e)
+            } finally {
+                _isAnalyzing.value = false
+            }
+        }
+    }
+
+    fun clearAnalysisResult() {
+        _analysisResult.value = null
+        _foodAddedToHomeScreen.value = null
     }
 
     override fun onCleared() {
