@@ -21,7 +21,11 @@ fun NavGraph(
         modifier = modifier
     ) {
         composable(route = Screen.Home.route) {
-            HomeScreen()
+            HomeScreen(
+                onNavigateToCamera = {
+                    navController.navigate(Screen.Camera.route)
+                }
+            )
         }
         
         composable(route = Screen.Camera.route) {
@@ -29,4 +33,3 @@ fun NavGraph(
         }
     }
 }
-

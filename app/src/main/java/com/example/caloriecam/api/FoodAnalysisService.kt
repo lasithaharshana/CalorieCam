@@ -2,6 +2,7 @@ package com.example.caloriecam.api
 
 import android.graphics.Bitmap
 import android.util.Log
+import com.example.caloriecam.config.NetworkConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -32,12 +33,6 @@ data class PredictionsResponse(
 
 class FoodAnalysisService {
     companion object {
-        // Server configuration - change this IP address as needed
-        private const val SERVER_IP = "192.168.1.4" // Using 127.0.0.1 for localhost
-        private const val SERVER_PORT = "5000"
-        private const val PREDICT_URL = "http://$SERVER_IP:$SERVER_PORT/predict"
-        private const val PREDICTIONS_URL = "http://$SERVER_IP:$SERVER_PORT/predictions"
-
         private const val TAG = "FoodAnalysisService"
         private val BOUNDARY = "----WebKitFormBoundary" + UUID.randomUUID().toString().substring(0, 16)
         private const val CRLF = "\r\n"
@@ -46,17 +41,19 @@ class FoodAnalysisService {
     suspend fun analyzeFood(bitmap: Bitmap): Result<FoodAnalysisResult> = withContext(Dispatchers.IO) {
         try {
             // Set up connection
-            val url = URL(PREDICT_URL)
+            val url = URL(NetworkConfig.PREDICT_URL)
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.doOutput = true
             connection.doInput = true
             connection.useCaches = false
+            connection.connectTimeout = NetworkConfig.CONNECTION_TIMEOUT
+            connection.readTimeout = NetworkConfig.READ_TIMEOUT
             connection.setRequestProperty("Connection", "Keep-Alive")
             connection.setRequestProperty("Cache-Control", "no-cache")
             connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=$BOUNDARY")
 
-            Log.d(TAG, "Sending multipart request to $PREDICT_URL")
+            Log.d(TAG, "Sending multipart request to ${NetworkConfig.PREDICT_URL}")
 
             // Get the bitmap bytes
             val outputStream = ByteArrayOutputStream()
@@ -104,7 +101,7 @@ class FoodAnalysisService {
             val result = FoodAnalysisResult(
                 label = prediction.getString("label"),
                 probability = prediction.getDouble("probability"),
-                caloriesPer100g = prediction.optInt("caloriesPer100g", 0)
+                caloriesPer100g = prediction.optInt("calories_per_100g", 0)
             )
 
             Result.success(result)
@@ -116,12 +113,14 @@ class FoodAnalysisService {
 
     suspend fun getAllPredictions(): Result<PredictionsResponse> = withContext(Dispatchers.IO) {
         try {
-            val url = URL(PREDICTIONS_URL)
+            val url = URL(NetworkConfig.PREDICTIONS_URL)
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
+            connection.connectTimeout = NetworkConfig.CONNECTION_TIMEOUT
+            connection.readTimeout = NetworkConfig.READ_TIMEOUT
             connection.setRequestProperty("Content-Type", "application/json")
 
-            Log.d(TAG, "Fetching predictions from $PREDICTIONS_URL")
+            Log.d(TAG, "Fetching predictions from ${NetworkConfig.PREDICTIONS_URL}")
 
             val responseCode = connection.responseCode
             Log.d(TAG, "Server response code: $responseCode")
@@ -169,9 +168,11 @@ class FoodAnalysisService {
 
     suspend fun deletePrediction(predictionId: String): Result<Boolean> = withContext(Dispatchers.IO) {
         try {
-            val url = URL("$PREDICTIONS_URL/$predictionId")
+            val url = URL("${NetworkConfig.PREDICTIONS_URL}/$predictionId")
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "DELETE"
+            connection.connectTimeout = NetworkConfig.CONNECTION_TIMEOUT
+            connection.readTimeout = NetworkConfig.READ_TIMEOUT
             connection.setRequestProperty("Content-Type", "application/json")
 
             Log.d(TAG, "Deleting prediction $predictionId")
