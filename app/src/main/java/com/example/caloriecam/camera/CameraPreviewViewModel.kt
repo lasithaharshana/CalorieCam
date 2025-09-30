@@ -7,11 +7,13 @@ import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import android.util.Log
+import android.util.Size
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
+import androidx.camera.core.AspectRatio
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
@@ -26,6 +28,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import kotlin.math.min
 
 class CameraPreviewViewModel : ViewModel() {
     // Track current camera selection
@@ -57,6 +60,7 @@ class CameraPreviewViewModel : ViewModel() {
     val preview = Preview.Builder().build()
     val imageCapture = ImageCapture.Builder()
         .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+        .setTargetResolution(Size(480, 480)) // Low resolution 1:1 for capture
         .build()
 
     // Track if camera is ready
@@ -154,7 +158,9 @@ class CameraPreviewViewModel : ViewModel() {
                     MediaStore.Images.Media.getBitmap(context.contentResolver, imageUri)
                 }
 
-                _capturedImage.value = bitmap
+                // Crop to 1:1 aspect ratio and resize to low resolution for consistency
+                val processedBitmap = cropToSquareAndResize(bitmap, 480)
+                _capturedImage.value = processedBitmap
                 Log.d("CameraViewModel", "Gallery image processed successfully")
             } catch (e: Exception) {
                 Log.e("CameraViewModel", "Error processing gallery image", e)
@@ -169,11 +175,26 @@ class CameraPreviewViewModel : ViewModel() {
         val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
 
         val rotationDegrees = image.imageInfo.rotationDegrees
-        if (rotationDegrees == 0) return bitmap
+        val rotatedBitmap = if (rotationDegrees == 0) {
+            bitmap
+        } else {
+            val matrix = android.graphics.Matrix()
+            matrix.postRotate(rotationDegrees.toFloat())
+            Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        }
 
-        val matrix = android.graphics.Matrix()
-        matrix.postRotate(rotationDegrees.toFloat())
-        return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        // Crop to 1:1 aspect ratio and resize to low resolution
+        return cropToSquareAndResize(rotatedBitmap, 480)
+    }
+
+    // Helper function to crop bitmap to 1:1 aspect ratio and resize
+    private fun cropToSquareAndResize(bitmap: Bitmap, targetSize: Int): Bitmap {
+        val size = minOf(bitmap.width, bitmap.height)
+        val x = (bitmap.width - size) / 2
+        val y = (bitmap.height - size) / 2
+
+        val croppedBitmap = Bitmap.createBitmap(bitmap, x, y, size, size)
+        return Bitmap.createScaledBitmap(croppedBitmap, targetSize, targetSize, true)
     }
 
     fun clearCapturedImage() {

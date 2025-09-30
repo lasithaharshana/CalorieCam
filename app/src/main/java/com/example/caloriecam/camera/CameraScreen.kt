@@ -10,12 +10,14 @@ import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -388,6 +390,138 @@ fun CameraPreviewWithControls(
             },
             modifier = Modifier.fillMaxSize()
         )
+
+        // 1:1 Capture Area Overlay - Dark overlay with square cutout
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            val screenWidth = maxWidth
+            val screenHeight = maxHeight
+            val squareSize = minOf(screenWidth, screenHeight) * 0.8f // 80% of smaller dimension
+
+            // Calculate position to center the square
+            val offsetX = (screenWidth - squareSize) / 2
+            val offsetY = (screenHeight - squareSize) / 2
+
+            // Dark overlay covering the entire screen
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.5f))
+            )
+
+            // Clear square area for capture zone
+            Box(
+                modifier = Modifier
+                    .size(squareSize)
+                    .offset(offsetX, offsetY)
+                    .background(Color.Transparent)
+                    .clip(RoundedCornerShape(12.dp))
+            ) {
+                // Border around capture area
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Transparent)
+                        .clip(RoundedCornerShape(12.dp))
+                ) {
+                    // Corner indicators
+                    val cornerSize = 24.dp
+                    val cornerThickness = 3.dp
+                    val cornerColor = Color.White
+
+                    // Top-left corner
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(cornerSize, cornerThickness)
+                                .background(cornerColor)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(cornerThickness, cornerSize)
+                                .background(cornerColor)
+                        )
+                    }
+
+                    // Top-right corner
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(cornerSize, cornerThickness)
+                                .background(cornerColor)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .offset(x = cornerSize - cornerThickness)
+                                .size(cornerThickness, cornerSize)
+                                .background(cornerColor)
+                        )
+                    }
+
+                    // Bottom-left corner
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .offset(y = cornerSize - cornerThickness)
+                                .size(cornerSize, cornerThickness)
+                                .background(cornerColor)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(cornerThickness, cornerSize)
+                                .background(cornerColor)
+                        )
+                    }
+
+                    // Bottom-right corner
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .offset(y = cornerSize - cornerThickness)
+                                .size(cornerSize, cornerThickness)
+                                .background(cornerColor)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .offset(x = cornerSize - cornerThickness)
+                                .size(cornerThickness, cornerSize)
+                                .background(cornerColor)
+                        )
+                    }
+
+                    // Center text instruction
+                    Text(
+                        text = "Place food in this area",
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .background(
+                                Color.Black.copy(alpha = 0.7f),
+                                RoundedCornerShape(8.dp)
+                            )
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
+            }
+        }
 
         // Improved loading state - only show when camera is not ready and not already initialized
         if (!cameraReady) {
