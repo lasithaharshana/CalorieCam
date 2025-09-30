@@ -19,8 +19,11 @@ data class FoodAnalysisResult(
 
 class FoodAnalysisService {
     companion object {
-        // Using 10.0.2.2 instead of 127.0.0.1 to access the host machine from Android emulator
-        private const val SERVER_URL = "http://10.0.2.2:5000/predict"
+        // Server configuration - change this IP address as needed
+        private const val SERVER_IP = "192.168.1.4" // Using 10.0.2.2 instead of 127.0.0.1 to access the host machine from Android emulator
+        private const val SERVER_PORT = "5000"
+        private const val SERVER_URL = "http://$SERVER_IP:$SERVER_PORT/predict"
+
         private const val TAG = "FoodAnalysisService"
         private  val BOUNDARY = "----WebKitFormBoundary" + UUID.randomUUID().toString().substring(0, 16)
         private const val CRLF = "\r\n"
