@@ -8,12 +8,12 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.caloriecam.ui.components.*
 import com.example.caloriecam.ui.theme.Spacing
 import com.example.caloriecam.data.PredictionRepository
@@ -29,153 +29,164 @@ fun HomeScreen(
     val predictions by predictionRepository.predictions.collectAsState()
     val isLoading by predictionRepository.isLoading.collectAsState()
     val error by predictionRepository.error.collectAsState()
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val pullToRefreshState = rememberPullToRefreshState()
 
     // Load predictions when screen is first displayed
     LaunchedEffect(Unit) {
         predictionRepository.refreshPredictions()
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(Spacing.md)
+    PullToRefreshBox(
+        isRefreshing = isLoading,
+        onRefresh = {
+            scope.launch {
+                predictionRepository.refreshPredictions()
+            }
+        },
+        state = pullToRefreshState,
+        modifier = modifier.fillMaxSize()
     ) {
-        // Header
-        SectionHeader(
-            title = "CalorieCam",
-            subtitle = "AI-powered food detection and calorie tracking"
-        )
-
-        Spacer(modifier = Modifier.height(Spacing.lg))
-
-        // Stats Section
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(Spacing.md)
         ) {
-            StatCard(
-                title = "Total Scans",
-                value = predictionRepository.getTotalCount().toString(),
-                subtitle = "Food items detected",
-                icon = Icons.Default.Restaurant,
-                modifier = Modifier.weight(1f)
+            // Header
+            SectionHeader(
+                title = "CalorieCam",
+                subtitle = "AI-powered food detection and calorie tracking"
             )
 
-            StatCard(
-                title = "Today's Calories",
-                value = "${predictionRepository.getTotalCaloriesToday()}",
-                subtitle = "Calories consumed",
-                icon = Icons.Default.Timeline,
-                modifier = Modifier.weight(1f)
-            )
-        }
+            Spacer(modifier = Modifier.height(Spacing.lg))
 
-        Spacer(modifier = Modifier.height(Spacing.lg))
-
-        // Camera Button
-        ModernButton(
-            text = "Scan Food",
-            onClick = onNavigateToCamera,
-            icon = Icons.Default.CameraAlt,
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(Spacing.lg))
-
-        // Recent Detections Section
-        SectionHeader(
-            title = "Recent Detections",
-            subtitle = "Latest food detections"
-        )
-
-        Spacer(modifier = Modifier.height(Spacing.md))
-
-        // Error handling
-        error?.let { errorMessage ->
-            Card(
+            // Stats Section
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer
-                )
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md)
             ) {
-                Row(
-                    modifier = Modifier.padding(Spacing.md),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Error: $errorMessage",
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Spacer(modifier = Modifier.weight(1f))
-                    TextButton(
-                        onClick = {
-                            predictionRepository.clearError()
-                            scope.launch {
-                                predictionRepository.refreshPredictions()
-                            }
-                        }
-                    ) {
-                        Text("Retry")
-                    }
-                }
+                StatCard(
+                    title = "Total Scans",
+                    value = predictionRepository.getTotalCount().toString(),
+                    subtitle = "Food items detected",
+                    icon = Icons.Default.Restaurant,
+                    modifier = Modifier.weight(1f)
+                )
+
+                StatCard(
+                    title = "Today's Calories",
+                    value = "${predictionRepository.getTotalCaloriesToday()}",
+                    subtitle = "Calories consumed",
+                    icon = Icons.Default.Timeline,
+                    modifier = Modifier.weight(1f)
+                )
             }
+
+            Spacer(modifier = Modifier.height(Spacing.lg))
+
+            // Camera Button
+            ModernButton(
+                text = "Scan Food",
+                onClick = onNavigateToCamera,
+                icon = Icons.Default.CameraAlt,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(Spacing.lg))
+
+            // Recent Detections Section
+            SectionHeader(
+                title = "Recent Detections",
+                subtitle = "Latest food detections"
+            )
+
             Spacer(modifier = Modifier.height(Spacing.md))
-        }
 
-        // Content
-        when {
-            isLoading && predictions.isEmpty() -> {
-                LoadingCard()
-            }
-            predictions.isEmpty() -> {
-                ModernCard {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(Spacing.lg),
-                        horizontalAlignment = Alignment.CenterHorizontally
+            // Error handling
+            error?.let { errorMessage ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(Spacing.md),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "No food detected yet",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Medium
+                            text = "Error: $errorMessage",
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            style = MaterialTheme.typography.bodyMedium
                         )
-                        Spacer(modifier = Modifier.height(Spacing.sm))
-                        Text(
-                            text = "Use the camera to detect food!",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        TextButton(
+                            onClick = {
+                                predictionRepository.clearError()
+                                scope.launch {
+                                    predictionRepository.refreshPredictions()
+                                }
+                            }
+                        ) {
+                            Text("Retry")
+                        }
                     }
                 }
+                Spacer(modifier = Modifier.height(Spacing.md))
             }
-            else -> {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(Spacing.md)
-                ) {
-                    items(
-                        items = predictionRepository.getRecentPredictions(),
-                        key = { it.id }
-                    ) { prediction ->
-                        FoodItemCard(
-                            prediction = prediction,
-                            onDelete = { predictionId ->
-                                scope.launch {
-                                    predictionRepository.deletePrediction(predictionId)
-                                }
-                            },
-                            onClick = {
-                                // Optional: Navigate to detailed view
-                            }
-                        )
-                    }
 
-                    if (isLoading) {
-                        item {
-                            LoadingCard()
+            // Content
+            when {
+                isLoading && predictions.isEmpty() -> {
+                    LoadingCard()
+                }
+                predictions.isEmpty() -> {
+                    ModernCard {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(Spacing.lg),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "No food detected yet",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Spacer(modifier = Modifier.height(Spacing.sm))
+                            Text(
+                                text = "Use the camera to detect food!",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+                else -> {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(Spacing.md)
+                    ) {
+                        items(
+                            items = predictionRepository.getRecentPredictions(),
+                            key = { it.id }
+                        ) { prediction ->
+                            FoodItemCard(
+                                prediction = prediction,
+                                onDelete = { predictionId ->
+                                    scope.launch {
+                                        predictionRepository.deletePrediction(predictionId)
+                                    }
+                                },
+                                onClick = {
+                                    // Optional: Navigate to detailed view
+                                }
+                            )
+                        }
+
+                        if (isLoading) {
+                            item {
+                                LoadingCard()
+                            }
                         }
                     }
                 }
