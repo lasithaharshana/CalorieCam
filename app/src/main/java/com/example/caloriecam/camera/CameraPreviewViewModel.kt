@@ -113,6 +113,9 @@ class CameraPreviewViewModel : ViewModel() {
     }
 
     fun capturePhoto(context: Context) {
+        // Clear previous analysis state when capturing a new photo
+        clearAllStates()
+
         val executor = ContextCompat.getMainExecutor(context)
 
         imageCapture.takePicture(
@@ -135,6 +138,9 @@ class CameraPreviewViewModel : ViewModel() {
     }
 
     fun processImageFromGallery(context: Context, imageUri: Uri) {
+        // Clear previous analysis state when selecting from gallery
+        clearAllStates()
+
         viewModelScope.launch {
             try {
                 val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -176,6 +182,15 @@ class CameraPreviewViewModel : ViewModel() {
 
     fun clearAnalysisState() {
         _analysisResult.value = null
+        _isAnalyzing.value = false
+    }
+
+    // Add new function to clear all states
+    fun clearAllStates() {
+        _capturedImage.value = null
+        _analysisResult.value = null
+        _isAnalyzing.value = false
+        _foodAddedToHomeScreen.value = null
     }
 
     fun analyzeImage() {

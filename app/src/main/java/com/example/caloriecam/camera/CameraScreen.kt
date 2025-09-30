@@ -100,6 +100,11 @@ fun CameraScreen(
     val isAnalyzing by cameraViewModel.isAnalyzing.collectAsState()
     val analysisResult by cameraViewModel.analysisResult.collectAsState()
 
+    // Clear all states when entering camera screen
+    LaunchedEffect(Unit) {
+        cameraViewModel.clearAllStates()
+    }
+
     // When a new image is captured, show the preview dialog
     LaunchedEffect(capturedImage) {
         if (capturedImage != null) {
@@ -107,57 +112,24 @@ fun CameraScreen(
         }
     }
 
-    // Show loading dialog when analyzing
-    if (isAnalyzing) {
-        Dialog(onDismissRequest = { /* Cannot dismiss while loading */ }) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth(0.8f)
-                    .padding(16.dp),
-                shape = RoundedCornerShape(16.dp),
-            ) {
-                Column(
-                    modifier = Modifier
-                        .padding(16.dp)
-                        .fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .padding(8.dp)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Analyzing image...",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Please wait while we analyze your image",
-                        style = MaterialTheme.typography.bodyMedium,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-        }
-    }
-
-    // Show result popup when analysis is complete
+    // Show result popup when analysis is complete - but don't clear state immediately
     LaunchedEffect(analysisResult) {
         analysisResult?.let { result ->
             // Show popup with results
-            val foodName = result.label.capitalize()
+            val foodName = result.label.replaceFirstChar {
+                if (it.isLowerCase()) it.titlecase() else it.toString()
+            }
             val probability = (result.probability * 100).toInt()
 
-            // Added a delay to ensure the loading dialog is shown for at least a moment
-            kotlinx.coroutines.delay(500)
-            cameraViewModel.clearAnalysisState()
+            // Wait for analysis to complete fully before clearing
+            kotlinx.coroutines.delay(1000) // Show result for 1 second
 
             // Create a toast message
             val message = "Food detected: $foodName with ${probability}% confidence"
             Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+
+            // Clear the analysis result after showing toast
+            cameraViewModel.clearAnalysisResult()
         }
     }
 
@@ -259,6 +231,43 @@ fun CameraScreen(
                 shouldShowRationale = shouldShowRationale,
                 onRequestPermission = { permissionsState.launchMultiplePermissionRequest() }
             )
+        }
+    }
+
+    // Show loading dialog when analyzing
+    if (isAnalyzing) {
+        Dialog(onDismissRequest = { /* Cannot dismiss while loading */ }) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth(0.8f)
+                    .padding(16.dp),
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .padding(8.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Analyzing image...",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Please wait while we analyze your image",
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
         }
     }
 }
