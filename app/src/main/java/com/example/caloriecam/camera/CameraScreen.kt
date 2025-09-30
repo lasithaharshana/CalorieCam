@@ -333,20 +333,42 @@ fun CameraPreviewWithControls(
         }
     }
 
-    // Handle lifecycle events and start camera
+    // Optimized camera lifecycle management to prevent flicker and hardware sounds
     DisposableEffect(lifecycleOwner) {
+        var isInitialized = false
+
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                viewModel.startCamera(context, lifecycleOwner)
+            when (event) {
+                Lifecycle.Event.ON_CREATE -> {
+                    if (!isInitialized) {
+                        viewModel.startCamera(context, lifecycleOwner)
+                        isInitialized = true
+                    }
+                }
+                Lifecycle.Event.ON_RESUME -> {
+                    // Only restart camera if it was previously stopped or not ready
+                    if (!cameraReady && !isInitialized) {
+                        viewModel.startCamera(context, lifecycleOwner)
+                        isInitialized = true
+                    }
+                }
+                Lifecycle.Event.ON_PAUSE -> {
+                    // Don't stop camera on pause to maintain state when switching tabs
+                }
+                else -> {}
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
 
-        // Initial camera setup
-        viewModel.startCamera(context, lifecycleOwner)
+        // Only start camera if not already initialized
+        if (!isInitialized && !cameraReady) {
+            viewModel.startCamera(context, lifecycleOwner)
+            isInitialized = true
+        }
 
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
+            isInitialized = false
         }
     }
 
@@ -367,12 +389,12 @@ fun CameraPreviewWithControls(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Show loading indicator when camera is not ready
+        // Improved loading state - only show when camera is not ready and not already initialized
         if (!cameraReady) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.6f)),
+                    .background(Color.Black.copy(alpha = 0.7f)),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
@@ -385,8 +407,9 @@ fun CameraPreviewWithControls(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "Preparing camera...",
-                        color = Color.White
+                        text = "Initializing camera...",
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodyMedium
                     )
                 }
             }
