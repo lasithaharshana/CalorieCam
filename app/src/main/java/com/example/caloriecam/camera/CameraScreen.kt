@@ -2,6 +2,7 @@ package com.example.caloriecam.camera
 
 import android.net.Uri
 import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.Preview
@@ -9,12 +10,14 @@ import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -95,10 +98,40 @@ fun CameraScreen(
     val capturedImage by cameraViewModel.capturedImage.collectAsState()
     var showImagePreview by remember { mutableStateOf(false) }
 
+    // Collect analysis state
+    val isAnalyzing by cameraViewModel.isAnalyzing.collectAsState()
+    val analysisResult by cameraViewModel.analysisResult.collectAsState()
+
+    // Clear all states when entering camera screen
+    LaunchedEffect(Unit) {
+        cameraViewModel.clearAllStates()
+    }
+
     // When a new image is captured, show the preview dialog
     LaunchedEffect(capturedImage) {
         if (capturedImage != null) {
             showImagePreview = true
+        }
+    }
+
+    // Show result popup when analysis is complete - but don't clear state immediately
+    LaunchedEffect(analysisResult) {
+        analysisResult?.let { result ->
+            // Show popup with results
+            val foodName = result.label.replaceFirstChar {
+                if (it.isLowerCase()) it.titlecase() else it.toString()
+            }
+            val probability = (result.probability * 100).toInt()
+
+            // Wait for analysis to complete fully before clearing
+            kotlinx.coroutines.delay(1000) // Show result for 1 second
+
+            // Create a toast message
+            val message = "Food detected: $foodName with ${probability}% confidence"
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+
+            // Clear the analysis result after showing toast
+            cameraViewModel.clearAnalysisResult()
         }
     }
 
@@ -165,16 +198,27 @@ fun CameraScreen(
                                     Text("Cancel")
                                 }
 
+                                val isAnalyzing by cameraViewModel.isAnalyzing.collectAsState()
+
                                 Button(
                                     onClick = {
-                                        // TODO: Add analyze logic
+                                        cameraViewModel.analyzeImage()
                                         showImagePreview = false
-                                    }
+                                    },
+                                    enabled = !isAnalyzing
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.CheckCircle,
-                                        contentDescription = "Analyze"
-                                    )
+                                    if (isAnalyzing) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp,
+                                            color = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Default.CheckCircle,
+                                            contentDescription = "Analyze"
+                                        )
+                                    }
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text("Analyze")
                                 }
@@ -189,6 +233,43 @@ fun CameraScreen(
                 shouldShowRationale = shouldShowRationale,
                 onRequestPermission = { permissionsState.launchMultiplePermissionRequest() }
             )
+        }
+    }
+
+    // Show loading dialog when analyzing
+    if (isAnalyzing) {
+        Dialog(onDismissRequest = { /* Cannot dismiss while loading */ }) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth(0.8f)
+                    .padding(16.dp),
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .padding(8.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Analyzing image...",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Please wait while we analyze your image",
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
         }
     }
 }
@@ -254,20 +335,42 @@ fun CameraPreviewWithControls(
         }
     }
 
-    // Handle lifecycle events and start camera
+    // Optimized camera lifecycle management to prevent flicker and hardware sounds
     DisposableEffect(lifecycleOwner) {
+        var isInitialized = false
+
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                viewModel.startCamera(context, lifecycleOwner)
+            when (event) {
+                Lifecycle.Event.ON_CREATE -> {
+                    if (!isInitialized) {
+                        viewModel.startCamera(context, lifecycleOwner)
+                        isInitialized = true
+                    }
+                }
+                Lifecycle.Event.ON_RESUME -> {
+                    // Only restart camera if it was previously stopped or not ready
+                    if (!cameraReady && !isInitialized) {
+                        viewModel.startCamera(context, lifecycleOwner)
+                        isInitialized = true
+                    }
+                }
+                Lifecycle.Event.ON_PAUSE -> {
+                    // Don't stop camera on pause to maintain state when switching tabs
+                }
+                else -> {}
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
 
-        // Initial camera setup
-        viewModel.startCamera(context, lifecycleOwner)
+        // Only start camera if not already initialized
+        if (!isInitialized && !cameraReady) {
+            viewModel.startCamera(context, lifecycleOwner)
+            isInitialized = true
+        }
 
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
+            isInitialized = false
         }
     }
 
@@ -288,12 +391,144 @@ fun CameraPreviewWithControls(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Show loading indicator when camera is not ready
+        // 1:1 Capture Area Overlay - Dark overlay with square cutout
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            val screenWidth = maxWidth
+            val screenHeight = maxHeight
+            val squareSize = minOf(screenWidth, screenHeight) * 0.8f // 80% of smaller dimension
+
+            // Calculate position to center the square
+            val offsetX = (screenWidth - squareSize) / 2
+            val offsetY = (screenHeight - squareSize) / 2
+
+            // Dark overlay covering the entire screen
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.5f))
+            )
+
+            // Clear square area for capture zone
+            Box(
+                modifier = Modifier
+                    .size(squareSize)
+                    .offset(offsetX, offsetY)
+                    .background(Color.Transparent)
+                    .clip(RoundedCornerShape(12.dp))
+            ) {
+                // Border around capture area
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Transparent)
+                        .clip(RoundedCornerShape(12.dp))
+                ) {
+                    // Corner indicators
+                    val cornerSize = 24.dp
+                    val cornerThickness = 3.dp
+                    val cornerColor = Color.White
+
+                    // Top-left corner
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(cornerSize, cornerThickness)
+                                .background(cornerColor)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(cornerThickness, cornerSize)
+                                .background(cornerColor)
+                        )
+                    }
+
+                    // Top-right corner
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(cornerSize, cornerThickness)
+                                .background(cornerColor)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .offset(x = cornerSize - cornerThickness)
+                                .size(cornerThickness, cornerSize)
+                                .background(cornerColor)
+                        )
+                    }
+
+                    // Bottom-left corner
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .offset(y = cornerSize - cornerThickness)
+                                .size(cornerSize, cornerThickness)
+                                .background(cornerColor)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(cornerThickness, cornerSize)
+                                .background(cornerColor)
+                        )
+                    }
+
+                    // Bottom-right corner
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .offset(y = cornerSize - cornerThickness)
+                                .size(cornerSize, cornerThickness)
+                                .background(cornerColor)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .offset(x = cornerSize - cornerThickness)
+                                .size(cornerThickness, cornerSize)
+                                .background(cornerColor)
+                        )
+                    }
+
+                    // Center text instruction
+                    Text(
+                        text = "Place food in this area",
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .background(
+                                Color.Black.copy(alpha = 0.7f),
+                                RoundedCornerShape(8.dp)
+                            )
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
+            }
+        }
+
+        // Improved loading state - only show when camera is not ready and not already initialized
         if (!cameraReady) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.6f)),
+                    .background(Color.Black.copy(alpha = 0.7f)),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
@@ -306,8 +541,9 @@ fun CameraPreviewWithControls(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "Preparing camera...",
-                        color = Color.White
+                        text = "Initializing camera...",
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodyMedium
                     )
                 }
             }
@@ -376,4 +612,3 @@ fun CameraPreviewWithControls(
         }
     }
 }
-

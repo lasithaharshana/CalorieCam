@@ -7,21 +7,28 @@ import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import android.util.Log
+import android.util.Size
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
+import androidx.camera.core.AspectRatio
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.caloriecam.api.FoodAnalysisResult
+import com.example.caloriecam.api.FoodAnalysisService
+import com.example.caloriecam.home.Food
+import com.example.caloriecam.home.FoodRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import kotlin.math.min
 
 class CameraPreviewViewModel : ViewModel() {
     // Track current camera selection
@@ -32,18 +39,37 @@ class CameraPreviewViewModel : ViewModel() {
     private val _capturedImage = MutableStateFlow<Bitmap?>(null)
     val capturedImage: StateFlow<Bitmap?> = _capturedImage
 
+    // Track analysis result
+    private val _analysisResult = MutableStateFlow<FoodAnalysisResult?>(null)
+    val analysisResult: StateFlow<FoodAnalysisResult?> = _analysisResult
+
+    // Track analysis state
+    private val _isAnalyzing = MutableStateFlow(false)
+    val isAnalyzing: StateFlow<Boolean> = _isAnalyzing
+
     // Camera executor for background operations
     private lateinit var cameraExecutor: ExecutorService
+
+    // Food analysis service
+    private val foodAnalysisService = FoodAnalysisService()
+
+    // Food repository
+    private val foodRepository = FoodRepository.getInstance()
 
     // Keep Preview and ImageCapture use cases as class members
     val preview = Preview.Builder().build()
     val imageCapture = ImageCapture.Builder()
         .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+        .setTargetResolution(Size(480, 480)) // Low resolution 1:1 for capture
         .build()
 
     // Track if camera is ready
     private val _cameraReady = MutableStateFlow(false)
     val cameraReady: StateFlow<Boolean> = _cameraReady
+
+    // Track if food was added to home screen
+    private val _foodAddedToHomeScreen = MutableStateFlow<Food?>(null)
+    val foodAddedToHomeScreen: StateFlow<Food?> = _foodAddedToHomeScreen
 
     init {
         cameraExecutor = Executors.newSingleThreadExecutor()
@@ -91,6 +117,9 @@ class CameraPreviewViewModel : ViewModel() {
     }
 
     fun capturePhoto(context: Context) {
+        // Clear previous analysis state when capturing a new photo
+        clearAllStates()
+
         val executor = ContextCompat.getMainExecutor(context)
 
         imageCapture.takePicture(
@@ -113,6 +142,9 @@ class CameraPreviewViewModel : ViewModel() {
     }
 
     fun processImageFromGallery(context: Context, imageUri: Uri) {
+        // Clear previous analysis state when selecting from gallery
+        clearAllStates()
+
         viewModelScope.launch {
             try {
                 val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -126,7 +158,9 @@ class CameraPreviewViewModel : ViewModel() {
                     MediaStore.Images.Media.getBitmap(context.contentResolver, imageUri)
                 }
 
-                _capturedImage.value = bitmap
+                // Crop to 1:1 aspect ratio and resize to low resolution for consistency
+                val processedBitmap = cropToSquareAndResize(bitmap, 480)
+                _capturedImage.value = processedBitmap
                 Log.d("CameraViewModel", "Gallery image processed successfully")
             } catch (e: Exception) {
                 Log.e("CameraViewModel", "Error processing gallery image", e)
@@ -141,15 +175,83 @@ class CameraPreviewViewModel : ViewModel() {
         val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
 
         val rotationDegrees = image.imageInfo.rotationDegrees
-        if (rotationDegrees == 0) return bitmap
+        val rotatedBitmap = if (rotationDegrees == 0) {
+            bitmap
+        } else {
+            val matrix = android.graphics.Matrix()
+            matrix.postRotate(rotationDegrees.toFloat())
+            Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        }
 
-        val matrix = android.graphics.Matrix()
-        matrix.postRotate(rotationDegrees.toFloat())
-        return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        // Crop to 1:1 aspect ratio and resize to low resolution
+        return cropToSquareAndResize(rotatedBitmap, 480)
+    }
+
+    // Helper function to crop bitmap to 1:1 aspect ratio and resize
+    private fun cropToSquareAndResize(bitmap: Bitmap, targetSize: Int): Bitmap {
+        val size = minOf(bitmap.width, bitmap.height)
+        val x = (bitmap.width - size) / 2
+        val y = (bitmap.height - size) / 2
+
+        val croppedBitmap = Bitmap.createBitmap(bitmap, x, y, size, size)
+        return Bitmap.createScaledBitmap(croppedBitmap, targetSize, targetSize, true)
     }
 
     fun clearCapturedImage() {
         _capturedImage.value = null
+    }
+
+    fun clearAnalysisState() {
+        _analysisResult.value = null
+        _isAnalyzing.value = false
+    }
+
+    // Add new function to clear all states
+    fun clearAllStates() {
+        _capturedImage.value = null
+        _analysisResult.value = null
+        _isAnalyzing.value = false
+        _foodAddedToHomeScreen.value = null
+    }
+
+    fun analyzeImage() {
+        val currentImage = _capturedImage.value ?: return
+
+        _isAnalyzing.value = true
+        viewModelScope.launch {
+            try {
+                val result = foodAnalysisService.analyzeFood(currentImage)
+                if (result.isSuccess) {
+                    val foodAnalysis = result.getOrNull()
+                    _analysisResult.value = foodAnalysis
+
+                    // Create a Food object from the result and add to repository
+                    foodAnalysis?.let { analysis ->
+                        val food = Food(
+                            name = analysis.label.capitalize(),
+                            description = "Detected with ${(analysis.probability * 100).toInt()}% confidence",
+                            calories = 0,  // We don't have calorie info from the prediction
+                            servingSize = "1 serving"
+                        )
+                        _foodAddedToHomeScreen.value = food
+
+                        // Add to repository so it shows up in the home screen
+                        foodRepository.addFood(food)
+                    }
+                } else {
+                    Log.e("CameraViewModel", "Analysis failed", result.exceptionOrNull())
+                }
+            } catch (e: Exception) {
+                Log.e("CameraViewModel", "Error during analysis", e)
+            } finally {
+                _isAnalyzing.value = false
+            }
+        }
+    }
+
+    fun clearAnalysisResult() {
+        _analysisResult.value = null
+        _foodAddedToHomeScreen.value = null
     }
 
     override fun onCleared() {
