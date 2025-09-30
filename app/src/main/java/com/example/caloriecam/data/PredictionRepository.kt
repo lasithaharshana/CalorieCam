@@ -97,4 +97,14 @@ class PredictionRepository {
     fun getTotalCount(): Int {
         return _predictions.value.size
     }
+
+    /**
+     * Get total calories for today
+     */
+    fun getTotalCaloriesToday(): Int {
+        val today = java.time.LocalDate.now().toString()
+        return _predictions.value
+            .filter { it.timestamp.startsWith(today) }
+            .sumOf { it.prediction.caloriesPer100g }
+    }
 }

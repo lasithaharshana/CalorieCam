@@ -64,11 +64,9 @@ fun HomeScreen(
             )
 
             StatCard(
-                title = "Accuracy",
-                value = if (predictions.isNotEmpty()) {
-                    "${String.format("%.1f", predictions.map { it.prediction.probability }.average() * 100)}%"
-                } else "0%",
-                subtitle = "Average confidence",
+                title = "Today's Calories",
+                value = "${predictionRepository.getTotalCaloriesToday()}",
+                subtitle = "Calories consumed",
                 icon = Icons.Default.Timeline,
                 modifier = Modifier.weight(1f)
             )
