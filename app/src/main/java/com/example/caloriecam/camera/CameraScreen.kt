@@ -117,17 +117,22 @@ fun CameraScreen(
     // Show result popup when analysis is complete - but don't clear state immediately
     LaunchedEffect(analysisResult) {
         analysisResult?.let { result ->
-            // Show popup with results
-            val foodName = result.label.replaceFirstChar {
-                if (it.isLowerCase()) it.titlecase() else it.toString()
-            }
             val probability = (result.probability * 100).toInt()
 
             // Wait for analysis to complete fully before clearing
             kotlinx.coroutines.delay(1000) // Show result for 1 second
 
-            // Create a toast message
-            val message = "Food detected: $foodName with ${probability}% confidence"
+            // Check if probability is less than 80%
+            val message = if (probability < 80) {
+                "Can't identify object, try again"
+            } else {
+                // Show popup with results
+                val foodName = result.label.replaceFirstChar {
+                    if (it.isLowerCase()) it.titlecase() else it.toString()
+                }
+                "Food detected: $foodName with ${probability}% confidence"
+            }
+
             Toast.makeText(context, message, Toast.LENGTH_LONG).show()
 
             // Clear the analysis result after showing toast
