@@ -8,7 +8,7 @@ object NetworkConfig {
     // Change this IP address to match your backend server
     // For local development: "127.0.0.1" or "localhost"
     // For network access: your actual IP address (e.g., "192.168.1.4")
-    const val SERVER_IP = "192.168.1.4"
+    const val SERVER_IP = "192.168.1.157"
     const val SERVER_PORT = "5000"
 
     // API endpoints
