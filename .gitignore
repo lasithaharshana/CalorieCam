@@ -103,3 +103,8 @@ Thumbs.db
 
 # Kotlin
 .kotlin/
+
+# Backend
+backend/dataset/
+backend/venv*/
+backend/images/

@@ -9,8 +9,8 @@ Pillow
 flask
 keras
 matplotlib
-pymongo==4.6.0
-bson
+pymongo
+opencv-python-headless
 
 
 #For model train
