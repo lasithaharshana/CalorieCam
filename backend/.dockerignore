@@ -1,0 +1,12 @@
+__pycache__
+*.pyc
+*.pyo
+.git
+.gitignore
+Custom Model Train/
+path/
+uploads/
+main.py
+README.md
+*.ipynb
+.env

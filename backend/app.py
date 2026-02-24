@@ -12,7 +12,7 @@ from datetime import datetime
 app = Flask(__name__)
 
 # MongoDB configuration
-MONGO_URI = "mongodb://localhost:27017"
+MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017")
 DATABASE_NAME = "fruit_veg_calorie_db"
 COLLECTION_NAME = "predictions"
 
